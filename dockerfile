@@ -5,17 +5,18 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     postgresql-client \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy Flask app
+COPY flask_backend/ .
 
 # Expose port
-EXPOSE 8000
+EXPOSE 5000
 
-# Run application
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Run Flask application
+CMD ["python", "app.py"]
