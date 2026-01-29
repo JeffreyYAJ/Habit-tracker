@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from './lib/supabase';
 import { Plus, Trash2 } from 'lucide-react';
+import * as api from './lib/api';
 
 interface Habit {
   id: string;
@@ -10,6 +10,7 @@ interface Habit {
 }
 
 interface Completion {
+  id: string;
   habit_id: string;
   day_number: number;
   completed: boolean;
@@ -32,24 +33,18 @@ function App() {
 
   const loadHabits = async () => {
     setLoading(true);
-    const { data: habitsData } = await supabase
-      .from('habits')
-      .select('*')
-      .eq('month', currentMonth)
-      .eq('year', currentYear)
-      .order('created_at', { ascending: true });
-
-    if (habitsData) {
+    try {
+      const habitsData = await api.getHabits(currentMonth, currentYear);
       setHabits(habitsData);
 
-      const { data: completionsData } = await supabase
-        .from('habit_completions')
-        .select('*')
-        .in('habit_id', habitsData.map(h => h.id));
-
-      if (completionsData) {
+      if (habitsData.length > 0) {
+        const completionsData = await api.getCompletions(habitsData.map(h => h.id));
         setCompletions(completionsData);
+      } else {
+        setCompletions([]);
       }
+    } catch (error) {
+      console.error('Failed to load habits:', error);
     }
     setLoading(false);
   };
@@ -58,26 +53,23 @@ function App() {
     e.preventDefault();
     if (!newHabitName.trim()) return;
 
-    const { data } = await supabase
-      .from('habits')
-      .insert({
-        name: newHabitName,
-        month: currentMonth,
-        year: currentYear,
-      })
-      .select()
-      .single();
-
-    if (data) {
+    try {
+      const data = await api.createHabit(newHabitName, currentMonth, currentYear);
       setHabits([...habits, data]);
       setNewHabitName('');
+    } catch (error) {
+      console.error('Failed to add habit:', error);
     }
   };
 
   const deleteHabit = async (habitId: string) => {
-    await supabase.from('habits').delete().eq('id', habitId);
-    setHabits(habits.filter(h => h.id !== habitId));
-    setCompletions(completions.filter(c => c.habit_id !== habitId));
+    try {
+      await api.deleteHabit(habitId);
+      setHabits(habits.filter(h => h.id !== habitId));
+      setCompletions(completions.filter(c => c.habit_id !== habitId));
+    } catch (error) {
+      console.error('Failed to delete habit:', error);
+    }
   };
 
   const toggleCompletion = async (habitId: string, day: number) => {
@@ -85,35 +77,24 @@ function App() {
       c => c.habit_id === habitId && c.day_number === day
     );
 
-    if (existing) {
-      const newCompleted = !existing.completed;
-      await supabase
-        .from('habit_completions')
-        .update({ completed: newCompleted })
-        .eq('habit_id', habitId)
-        .eq('day_number', day);
+    try {
+      if (existing) {
+        const newCompleted = !existing.completed;
+        await api.updateCompletion(habitId, day, newCompleted);
 
-      setCompletions(
-        completions.map(c =>
-          c.habit_id === habitId && c.day_number === day
-            ? { ...c, completed: newCompleted }
-            : c
-        )
-      );
-    } else {
-      const { data } = await supabase
-        .from('habit_completions')
-        .insert({
-          habit_id: habitId,
-          day_number: day,
-          completed: true,
-        })
-        .select()
-        .single();
-
-      if (data) {
+        setCompletions(
+          completions.map(c =>
+            c.habit_id === habitId && c.day_number === day
+              ? { ...c, completed: newCompleted }
+              : c
+          )
+        );
+      } else {
+        const data = await api.createCompletion(habitId, day, true);
         setCompletions([...completions, data]);
       }
+    } catch (error) {
+      console.error('Failed to toggle completion:', error);
     }
   };
 
