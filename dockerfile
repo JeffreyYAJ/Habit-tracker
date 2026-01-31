@@ -5,8 +5,7 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     postgresql-client \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+    gcc 
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
